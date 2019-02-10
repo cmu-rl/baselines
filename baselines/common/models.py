@@ -69,7 +69,7 @@ def cnn(**conv_kwargs):
 @register("cnn_small")
 def cnn_small(**conv_kwargs):
     def network_fn(X):
-        h = tf.cast(X, tf.float32) / 255.
+        h = tf.cast(X, tf.float32)  / 255.
 
         activ = tf.nn.relu
         h = activ(conv(h, 'c1', nf=8, rf=8, stride=4, init_scale=np.sqrt(2), **conv_kwargs))
@@ -197,11 +197,73 @@ def conv_only(convs=[(32, 8, 4), (64, 4, 2), (64, 3, 1)], **conv_kwargs):
         return out
     return network_fn
 
+
 def _normalize_clip_observation(x, clip_range=[-5.0, 5.0]):
     rms = RunningMeanStd(shape=x.shape[1:])
     norm_x = tf.clip_by_value((x - rms.mean) / rms.std, min(clip_range), max(clip_range))
     return norm_x, rms
 
+def _uint8_to_float(x):
+    if x.dtype.as_numpy_dtype == np.uint8:
+        return (tf.cast(x, tf.float32) - 127) / 255.
+    else:
+        return x / 255
+
+@register("tuple_of")
+def tuple_network(network1, network2=None, network3=None):
+    '''
+    applies network one to the first element of input and network2 to the second (if not None)
+    results are flattened and concatenated (preserving batch dimension)
+
+    Parameters:
+    ----------
+
+    network1:     network for the first element in the tuple
+
+    Returns:
+
+    function that takes tensorflow tensor as input and returns the output of the last convolutional layer
+
+    '''
+    def network_fn(X):
+        out_1 = layers.flatten(network1(X[0]))
+        in_2 = _uint8_to_float(X[1])
+        if network2 is not None:
+            out_2 = layers.flatten(network2(in_2))
+        else:
+            out_2 = layers.flatten(in_2)
+        out_3 = tf.concat([out_1, out_2], axis=-1)
+        if network3 is not None:
+            out_3 = network3(out_3)
+        return out_3
+    return network_fn
+
+
+@register("single_layer")
+def fully_connected(num_outputs=32, **fc_kwargs):
+    '''
+    applies network one to the first element of input and network2 to the second (if not None)
+    results are flattened and concatenated (preserving batch dimension)
+
+    Parameters:
+    ----------
+
+    network1:     network for the first element in the tuple
+
+    Returns:
+
+    function that takes tensorflow tensor as input and returns the output of the last convolutional layer
+
+    '''
+    def network_fn(X):
+        with tf.variable_scope("fully_connected"):
+                out = layers.fully_connected(X,
+                                             num_outputs=num_outputs,
+                                             activation_fn=tf.nn.relu,
+                                             **fc_kwargs)
+
+        return out
+    return network_fn
 
 def get_network_builder(name):
     """

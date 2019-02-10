@@ -34,7 +34,9 @@ class Model(object):
 
         sess = tf_util.get_session()
         nenvs = env.num_envs
-        nbatch = nenvs*nsteps
+        nbatch = None
+        if nsteps:
+            nbatch = nenvs*nsteps
 
 
         with tf.variable_scope('a2c_model', reuse=tf.AUTO_REUSE):
@@ -92,7 +94,12 @@ class Model(object):
             for step in range(len(obs)):
                 cur_lr = lr.value()
 
-            td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr}
+            td_map = {A:actions, ADV:advs, R:rewards, LR:cur_lr}
+            if train_model.is_list_obs:
+                for idx, X in enumerate(train_model.X):
+                    td_map[X] = obs[idx]
+            else:
+                td_map[train_model.X] = obs
             if states is not None:
                 td_map[train_model.S] = states
                 td_map[train_model.M] = masks
