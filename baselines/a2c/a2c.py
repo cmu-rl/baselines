@@ -29,7 +29,7 @@ class Model(object):
         - Save load the model
     """
     def __init__(self, policy, env, nsteps,
-            ent_coef=0.01, vf_coef=0.5, max_grad_norm=0.5, lr=7e-4,
+            pg_coef=1, ent_coef=0.01, vf_coef=0.5, max_grad_norm=0.5, lr=7e-4,
             alpha=0.99, epsilon=1e-5, total_timesteps=int(80e6), lrschedule='linear'):
 
         sess = tf_util.get_session()
@@ -65,7 +65,7 @@ class Model(object):
         # Value loss
         vf_loss = losses.mean_squared_error(tf.squeeze(train_model.vf), R)
 
-        loss = pg_loss - entropy*ent_coef + vf_loss * vf_coef
+        loss = pg_loss * pg_coef - entropy * ent_coef + vf_loss * vf_coef
 
         # Update parameters using loss
         # 1. Get the model parameters
