@@ -18,6 +18,7 @@ class ReplayBuffer(object):
         self._storage = []
         self._maxsize = size
         self._next_idx = 0
+        self._expert_idx = 0
 
     def __len__(self):
         return len(self._storage)
@@ -35,7 +36,12 @@ class ReplayBuffer(object):
             self._storage.append(data)
         else:
             self._storage[self._next_idx] = data
-        self._next_idx = (self._next_idx + 1) % self._maxsize
+        self._next_idx = max(self._expert_idx, (self._next_idx + 1) % self._maxsize)
+
+    def add_expert(self, obs_t, action, reward, obs_tp1, done):
+        if len(self._storage) < self._maxsize:
+            self.add(obs_t, action, reward, obs_tp1, done)
+            self._expert_idx += 1
 
     def _encode_sample(self, idxes):
         obses_t, actions, rewards, obses_tp1, dones = [], [], [], [], []
