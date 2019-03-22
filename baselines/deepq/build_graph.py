@@ -386,10 +386,10 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         importance_weights_ph = tf.placeholder(tf.float32, [None], name="weight")
 
         if not nstep:
-            discounts = tf.constant(gamma, shape=[tf.size(act_t_ph)], name="discount") 
+            discounts = tf.fill(tf.shape(rew_t_ph), gamma, name="discount") 
         else:
-            step_ph = tf.placeholder(tf.int32, [None], name="nsteps")
-            gammas = tf.constant(gamma, shape=[tf.size(act_t_ph)]) 
+            step_ph = tf.placeholder(tf.float32, [None], name="nsteps")
+            gammas = tf.fill(tf.shape(rew_t_ph), gamma, name="discount") 
             discounts = tf.pow(gammas, step_ph, name="discount")
 
         # q network evaluation
