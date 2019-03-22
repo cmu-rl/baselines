@@ -316,7 +316,7 @@ def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="deepq", 
 
 
 def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=None, gamma=1.0,
-    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None):
+    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, nstep=False):
     """Creates the train function:
 
     Parameters
@@ -385,6 +385,13 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         done_mask_ph = tf.placeholder(tf.float32, [None], name="done")
         importance_weights_ph = tf.placeholder(tf.float32, [None], name="weight")
 
+        if not nstep:
+            discounts = tf.constant(gamma, shape=[tf.size(act_t_ph)], name="discount") 
+        else:
+            step_ph = tf.placeholder(tf.int32, [None], name="nsteps")
+            gammas = tf.constant(gamma, shape=[tf.size(act_t_ph)]) 
+            discounts = tf.pow(gammas, step_ph, name="discount")
+
         # q network evaluation
         q_t = q_func(obs_t_input.get(), num_actions, scope="q_func", reuse=True)  # reuse parameters from act
         q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + "/q_func")
@@ -406,7 +413,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         q_tp1_best_masked = (1.0 - done_mask_ph) * q_tp1_best
 
         # compute RHS of bellman equation
-        q_t_selected_target = rew_t_ph + gamma * q_tp1_best_masked
+        q_t_selected_target = rew_t_ph + tf.multiply(discounts, q_tp1_best_masked)
 
         # compute the error (potentially clipped)
         td_error = q_t_selected - tf.stop_gradient(q_t_selected_target)
@@ -443,16 +450,20 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
 
         merged = tf.summary.merge_all() 
 
+        placeholder_inputs = [
+            obs_t_input,
+            act_t_ph,
+            rew_t_ph,
+            obs_tp1_input,
+            done_mask_ph,
+            importance_weights_ph
+        ]
+        if nstep:
+            placeholder_inputs.append(step_ph)
+
         # Create callable functions
         train = U.function(
-            inputs=[
-                obs_t_input,
-                act_t_ph,
-                rew_t_ph,
-                obs_tp1_input,
-                done_mask_ph,
-                importance_weights_ph
-            ],
+            inputs=placeholder_inputs,
             outputs=[
                 td_error,
                 merged
