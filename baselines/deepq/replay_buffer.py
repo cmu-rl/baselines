@@ -6,7 +6,7 @@ from baselines.common.segment_tree import SumSegmentTree, MinSegmentTree
 
 
 class ReplayBuffer(object):
-    def __init__(self, size):
+    def __init__(self, size, has_steps=False):
         """Create Replay buffer.
 
         Parameters
@@ -19,6 +19,7 @@ class ReplayBuffer(object):
         self._maxsize = size
         self._next_idx = 0
         self._expert_idx = 0
+        self._has_steps = has_steps
 
     def __len__(self):
         return len(self._storage)
@@ -29,8 +30,11 @@ class ReplayBuffer(object):
         else:
             return sys.getsizeof(self._storage)
 
-    def add(self, obs_t, action, reward, obs_tp1, done, nsteps):
-        data = (obs_t, action, reward, obs_tp1, done, nsteps)
+    def add(self, obs_t, action, reward, obs_tp1, done, nsteps=1):
+        if self._has_steps:
+            data = (obs_t, action, reward, obs_tp1, done, nsteps)
+        else:
+            data = (obs_t, action, reward, obs_tp1, done)
 
         if self._next_idx >= len(self._storage):
             self._storage.append(data)
@@ -47,14 +51,20 @@ class ReplayBuffer(object):
         obses_t, actions, rewards, obses_tp1, dones, nsteps = [], [], [], [], [], []
         for i in idxes:
             data = self._storage[i]
-            obs_t, action, reward, obs_tp1, done, nstep = data
+            if self._has_steps:
+                obs_t, action, reward, obs_tp1, done, nstep = data
+            else:
+                obs_t, action, reward, obs_tp1, done = data
             obses_t.append(np.array(obs_t, copy=False))
             actions.append(np.array(action, copy=False))
             rewards.append(reward)
             obses_tp1.append(np.array(obs_tp1, copy=False))
             dones.append(done)
-            nsteps.append(nstep)
-        return np.array(obses_t), np.array(actions), np.array(rewards), np.array(obses_tp1), np.array(dones), np.array(nsteps)
+            if self._has_steps:
+                nsteps.append(nstep)
+        if self._has_steps:
+            return np.array(obses_t), np.array(actions), np.array(rewards), np.array(obses_tp1), np.array(dones), np.array(nsteps)
+        return np.array(obses_t), np.array(actions), np.array(rewards), np.array(obses_tp1), np.array(dones)
 
     def sample(self, batch_size):
         """Sample a batch of experiences.
